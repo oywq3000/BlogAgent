@@ -121,14 +121,3 @@ cd /g/agentWorkplace/BlogAgent && MOCK_LLM=1 /d/tool1/anancoda/envs/ai-agent/pyt
 - [ ] 6. **测试全绿** + 部署无关（纯 env 配置，裸跑/容器均可）
 
 > 验收清单由 Task 10（真实联调）逐条勾选并记录结果。
-
-## 8. 已知问题
-
-- **MOCK 模式流式端点当前不可用（2026-08-23 Task 9 实测发现）**：`app/llm.py` 的
-  `MockChatModel` 未覆写 `bind_tools`，而本版 langchain-core（1.5.5）的
-  `BaseChatModel.bind_tools` 直接抛 `NotImplementedError`；`app/agent/graph.py` 的
-  `build_graph` 固定调用 `model.bind_tools(tools)`，导致 `MOCK_LLM=1` 启动后
-  `/chat/stream` 首个请求即 500（`/chat/stop` 与参数校验 error 分支不受影响）。
-  单测未暴露该问题，是因为 `tests/conftest.py` 对 `MockChatModel` 打了测试专用补丁
-  （no-op `bind_tools`），真实 uvicorn 进程不会加载该补丁。修复参考 `tests/conftest.py`
-  先例：在 `MockChatModel` 内补一个 no-op `bind_tools` 覆写即可（1 行），不改协议。
