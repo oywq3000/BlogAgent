@@ -5,6 +5,7 @@
 deepseek-chat + extra_body={"thinking": {"type": "enabled"}}，
 流式 chunk 的 additional_kwargs["reasoning_content"] 即思考内容。
 """
+import time
 from typing import Any, Iterator
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -49,11 +50,65 @@ class MockChatModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "mock-chat"
 
+    def bind_tools(self, tools, *, tool_choice=None, **kwargs):
+        """no-op 覆写：Mock 输出完全由脚本决定，与工具绑定无关。
+
+        langchain-core 1.5.5 的 BaseChatModel.bind_tools 直接抛 NotImplementedError，
+        而 build_graph 无条件调用 model.bind_tools(tools)（生产 ChatDeepSeek 才有真实
+        实现）。与 tests/test_graph.py 的 FakeModelWithTools 同一先例，仅对假模型语义无损。
+        """
+        return self
+
+    def _iter_chunks(self, last: str) -> Iterator[ChatGenerationChunk]:
+        """统一的 chunk 序列：deep_thinking 思考帧在前 + 逐字内容帧（各路径共用）。"""
+        if self.deep_thinking:
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(
+                    content="", additional_kwargs={"reasoning_content": "模拟思考过程……"}
+                )
+            )
+        for ch in f"【MOCK】收到：{last}":
+            yield ChatGenerationChunk(message=AIMessageChunk(content=ch))
+
+    def _emit_token_callbacks(self, last: str, run_manager) -> None:
+        """同步路径逐 token 触发 on_llm_new_token（0.05s/帧）。
+
+        langgraph 的 stream_mode="messages" 靠 on_llm_new_token 捕获逐 token 帧；
+        同步路径（invoke/_stream）不显式回调的话只产出全量消息，token/thinking 帧
+        全部丢失。chunk 必须是 ChatGenerationChunk（langgraph v1 捕获器会忽略非
+        ChatGenerationChunk 的回调）。
+        """
+        for chunk in self._iter_chunks(last):
+            token = chunk.message.additional_kwargs.get("reasoning_content") or chunk.message.content
+            run_manager.on_llm_new_token(token, chunk=chunk)
+            time.sleep(0.05)
+
     def _generate(
-        self, messages: list[BaseMessage], stop: list[str] | None = None, **kwargs: Any
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager=None,
+        **kwargs: Any,
     ) -> ChatResult:
         last = str(messages[-1].content)
+        if run_manager is not None:
+            self._emit_token_callbacks(last, run_manager)
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content=f"【MOCK】收到：{last}"))])
+
+    def _stream(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager=None,
+        **kwargs: Any,
+    ) -> Iterator[ChatGenerationChunk]:
+        last = str(messages[-1].content)
+        for chunk in self._iter_chunks(last):
+            if run_manager is not None:
+                token = chunk.message.additional_kwargs.get("reasoning_content") or chunk.message.content
+                run_manager.on_llm_new_token(token, chunk=chunk)
+            yield chunk
+            time.sleep(0.05)
 
     async def _astream(
         self, messages: list[BaseMessage], stop: list[str] | None = None, **kwargs: Any
@@ -61,13 +116,6 @@ class MockChatModel(BaseChatModel):
         import asyncio
 
         last = str(messages[-1].content)
-        if self.deep_thinking:
-            yield ChatGenerationChunk(
-                message=AIMessageChunk(
-                    content="", additional_kwargs={"reasoning_content": "模拟思考过程……"}
-                )
-            )
-            await asyncio.sleep(0.05)
-        for ch in f"【MOCK】收到：{last}":
-            yield ChatGenerationChunk(message=AIMessageChunk(content=ch))
+        for chunk in self._iter_chunks(last):
+            yield chunk
             await asyncio.sleep(0.05)

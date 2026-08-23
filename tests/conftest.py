@@ -1,79 +1,24 @@
 # -*- coding: utf-8 -*-
 """测试夹具：MOCK_LLM=1 环境 + httpx ASGITransport 客户端。
 
-说明（相对 task-8 brief 的三处必要补充，均不改业务代码）：
-1. MockChatModel.bind_tools：本版 langchain-core（1.5.5）BaseChatModel.bind_tools 抛
-   NotImplementedError，而 build_graph 固定调用 model.bind_tools(tools)。与
-   tests/test_graph.py 的 FakeModelWithTools 同一先例，补 no-op 覆写（不改 app/llm.py）。
-2. MockChatModel._generate：图内 agent 节点是同步 invoke()，永远走不到 _astream，
-   stream_mode="messages" 只产出全量消息、无逐 token 帧。按 _astream 同样的输出逻辑
-   在同步路径上用 run_manager.on_llm_new_token 发逐 token 回调（含 reasoning_content
-   思考帧与 0.05s 间隔），使图流式产出与 _astream 一致的 chunk 序列。
-3. MOCK_LLM 生命周期：收集期（import app.main 的 fail-fast 检查）需要该环境变量，
+说明（task-9 修复轮移除测试专用补丁后保留的两项，均不改业务代码）：
+1. MOCK_LLM 生命周期：收集期（import app.main 的 fail-fast 检查）需要该环境变量，
    但保持全局设置会让 test_config.test_defaults（断言 mock_llm=False）失败。
    故会话开跑后移除，stream 测试由 client fixture 按测试注入。
+2. 增量 ASGI transport：httpx 自带 ASGITransport 会缓冲整个响应体后才返回，
+   测试端无法在流进行中看到首帧；本实现逐块转发 app 的 send()（asyncio.Queue
+   桥接），行为与真实 uvicorn 一致，供 SSE 时序用例使用。
+MockChatModel 的 bind_tools / 逐 token 回调已由 app/llm.py 原生实现（不再打补丁）。
 """
 import asyncio  # noqa: E402
 import contextlib  # noqa: E402
 import os
-import time as _time  # noqa: E402
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402
-from langchain_core.messages import AIMessage, AIMessageChunk  # noqa: E402
-from langchain_core.outputs import (  # noqa: E402
-    ChatGeneration,
-    ChatGenerationChunk,
-    ChatResult,
-)
 
 from app.config import get_settings  # noqa: E402
 from app.agent.graph import get_graph  # noqa: E402
-from app import llm  # noqa: E402
-
-
-def _noop_bind_tools(self, tools, *, tool_choice=None, **kwargs):
-    """MockChatModel 未覆写 bind_tools（本版 langchain-core 1.5.5 直接抛 NotImplementedError）。
-
-    与 tests/test_graph.py 的 FakeModelWithTools 同一先例：build_graph 内部固定调用
-    model.bind_tools(tools)，而 Mock 模型输出完全由 _generate/_astream 脚本决定，
-    与工具绑定无关，补 no-op 覆写即可（不改 app/llm.py）。
-    """
-    return self
-
-
-llm.MockChatModel.bind_tools = _noop_bind_tools
-
-
-def _generate_with_token_callbacks(self, messages, stop=None, run_manager=None, **kwargs):
-    """MockChatModel 同步路径补逐 token 回调（与 _astream 输出一致）。
-
-    图内 agent 节点是同步 invoke()，_astream 永远不会被调用，导致 stream_mode="messages"
-    只产出全量消息、无逐 token 帧（deep_thinking 的 reasoning_content 也随之丢失）。
-    这里按 _astream 同样的输出逻辑在同步路径上用 run_manager.on_llm_new_token 发出
-    逐 token 回调（思考帧在前、0.05s/帧），使图流式产出与 _astream 一致的 chunk 序列。
-    仅测试环境生效（不改 app/llm.py）。
-    """
-    last = str(messages[-1].content)
-    if self.deep_thinking and run_manager is not None:
-        run_manager.on_llm_new_token(
-            "模拟思考过程……",
-            chunk=ChatGenerationChunk(
-                message=AIMessageChunk(
-                    content="", additional_kwargs={"reasoning_content": "模拟思考过程……"}
-                )
-            ),
-        )
-        _time.sleep(0.05)
-    for ch in f"【MOCK】收到：{last}":
-        run_manager.on_llm_new_token(
-            ch, chunk=ChatGenerationChunk(message=AIMessageChunk(content=ch))
-        )
-        _time.sleep(0.05)
-    return ChatResult(generations=[ChatGeneration(message=AIMessage(content=f"【MOCK】收到：{last}"))])
-
-
-llm.MockChatModel._generate = _generate_with_token_callbacks
 
 
 @pytest.fixture(autouse=True, scope="session")
