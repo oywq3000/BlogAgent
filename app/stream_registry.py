@@ -28,7 +28,15 @@ class StreamRegistry:
             return True
         return False
 
-    def remove(self, conversation_id: str) -> None:
+    def remove(self, conversation_id: str, task: asyncio.Task | None = None) -> None:
+        """移除登记。
+
+        带 task 参数时做身份检查：仅当登记里的任务正是该 task 才移除，
+        防止同会话旧流的收尾误删新流的登记（替换时序竞态）；
+        task 为 None 时保持旧行为（无条件 pop），向后兼容。
+        """
+        if task is not None and self._streams.get(conversation_id) is not task:
+            return
         self._streams.pop(conversation_id, None)
 
 

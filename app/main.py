@@ -106,7 +106,7 @@ async def chat_stream(body: dict) -> StreamingResponse:
                     yield sse_error(code, msg)
                     return
         finally:
-            registry.remove(conversation_id)
+            registry.remove(conversation_id, task)
             if not task.done():
                 task.cancel()
 

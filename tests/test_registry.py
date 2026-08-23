@@ -67,3 +67,34 @@ async def test_remove_idempotent():
     reg.register("c1", task)
     reg.remove("c1")
     reg.remove("c1")
+
+
+@pytest.mark.asyncio
+async def test_remove_wrong_task_keeps_registration():
+    # 身份检查：传入的不是登记的任务时，不应误删登记
+    reg = StreamRegistry()
+    task = asyncio.create_task(_sleeper())
+    wrong = asyncio.create_task(_sleeper())
+    reg.register("c1", task)
+    reg.remove("c1", wrong)
+    assert reg.get("c1") is task
+
+
+@pytest.mark.asyncio
+async def test_remove_correct_task_deletes():
+    # 身份检查：传入当前登记的任务时，正常删除
+    reg = StreamRegistry()
+    task = asyncio.create_task(_sleeper())
+    reg.register("c1", task)
+    reg.remove("c1", task)
+    assert reg.get("c1") is None
+
+
+@pytest.mark.asyncio
+async def test_remove_without_task_keeps_old_behavior():
+    # 无 task 参数时保持旧行为：无条件移除
+    reg = StreamRegistry()
+    task = asyncio.create_task(_sleeper())
+    reg.register("c1", task)
+    reg.remove("c1")
+    assert reg.get("c1") is None
