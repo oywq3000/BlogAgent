@@ -1,0 +1,18 @@
+# 环境与密钥（绝不进版本库）
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# 日志与临时文件
+*.log
+logs/
+.tmp_*
