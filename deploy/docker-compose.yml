@@ -1,0 +1,33 @@
+# 博客 AI Agent 独立编排（部署在服务器 /home/oy/app/oyblogdeploy/blogagent/deploy/）
+# 前提：MySQL/Redis/Nacos/ES/RabbitMQ/MinIO 中间件编排已在服务器跑通（/home/oy/app/oyblog/），
+#       并创建外部网络 oyblog_oyblog-net（172.19.0.0/16）
+# 用法：cd /home/oy/app/oyblogdeploy/blogagent/deploy && docker compose up -d --build
+# 说明：
+#   - 挂入中间件外部网络：ES 走容器名 elasticsearch:9200，与 Java 业务容器同网段二层直连，
+#     互访不经过宿主机防火墙（NAS 防火墙拦截"宿主机端口"的历史教训）
+#   - Java agent-service 通过 AGENT_PYTHON_URL=http://oy-blog-python-agent:8001 访问本服务
+#   - 不发布端口：与业务服务一致，仅容器网络内部互访
+#   - 敏感变量统一放同目录 .env（env_file 注入），模板见 deploy/.env.example
+#   - 内存注意：本服务实际 RSS 约 300-400MB（langchain/langgraph 导入开销），
+#     服务器总内存预算需相应上调
+name: blog-agent
+
+services:
+  python-agent:
+    image: oy-blog/python-agent:1.0-SNAPSHOT
+    container_name: oy-blog-python-agent
+    restart: always
+    pids_limit: 256        # 防线程爆炸拖死宿主机（与 oy-blog 业务容器一致）
+    cpus: "0.5"
+    mem_limit: 512m        # langchain/langgraph 导入链路重，给足余量
+    env_file:
+      - .env               # DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL / ES_URL / ES_USERNAME / ES_PASSWORD / TZ
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    networks:
+      - oyblog_oyblog-net  # 中间件所在的外部网络（中间件编排文件在 /home/oy/app/oyblog/）
+
+networks:
+  oyblog_oyblog-net:
+    external: true

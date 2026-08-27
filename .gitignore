@@ -1,5 +1,6 @@
 # 环境与密钥（绝不进版本库）
 .env
+deploy/.env
 
 # Python
 __pycache__/

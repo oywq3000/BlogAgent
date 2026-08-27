@@ -150,3 +150,52 @@ cd /g/agentWorkplace/BlogAgent && MOCK_LLM=1 /d/tool1/anancoda/envs/ai-agent/pyt
 >   - 写作辅助：产出引用博客素材的 Java 集合框架完整大纲
 >   - 降级：`ES_URL` 指向不可达重启后纯对话正常、RAG 兜底如实告知检索不可用（HTTP 200 不崩溃）
 > - 验收项 1（Java 端全链路）仍待用户在有 Java 工程的环境手动确认。
+
+## 8. 服务器部署（独立部署，参考 oy-blog 后端写法）
+
+本仓库自带完整部署文件（`deploy/`），独立 compose 项目挂在中间件外部网络
+`oyblog_oyblog-net` 上，与 oy-blog 的 Java 业务容器同网段二层直连：
+ES 走容器名 `elasticsearch:9200`，Java agent-service 通过
+`AGENT_PYTHON_URL=http://oy-blog-python-agent:8001` 访问本服务（互访绕过 NAS 防火墙）。
+
+**前提**：
+
+- 服务器（100.110.148.14）已跑通 oy-blog 中间件编排并创建 `oyblog_oyblog-net`
+- 服务器可访问 PyPI（镜像在服务器构建，`requirements.txt` 不变时 pip 层命中 Docker 缓存）
+- 内存预算：本服务实际 RSS 约 300-400MB（mem_limit 512m）
+
+**首次部署**：
+
+```bash
+# 1. 准备服务器专用 env（真实值，不入库）
+cp deploy/.env.example deploy/.env   # 填 DEEPSEEK_API_KEY / ES_PASSWORD 等
+
+# 2. 一条命令部署（首次带 --sync-config 同步 compose/Dockerfile/env）
+./deploy/deploy.sh --sync-config
+```
+
+**日常部署**（只改了 app/ 代码）：
+
+```bash
+./deploy/deploy.sh
+```
+
+**参数**：
+
+| 参数 | 说明 |
+| --- | --- |
+| `--sync-config` | 同步 deploy/Dockerfile、deploy/docker-compose.yml、deploy/.env（两端 MD5 比对，有变化才上传） |
+| `--clean` | 上传前清空服务器旧源码目录 |
+| `--rollback` | 恢复上次构建快照（code.bak.tar.gz）并重建镜像 |
+
+**oy-blog 侧配套改动（仅一行）**：oy-blog 服务器 `.env` 的
+`AGENT_PYTHON_URL` 从 Tailscale IP 改为 `http://oy-blog-python-agent:8001`
+（模板已同步更新，用其 `deploy.sh --sync-config` 生效）。
+
+**部署后验证**：
+
+```bash
+ssh oy@100.110.148.14 'cd /home/oy/app/oyblogdeploy/blogagent/deploy && docker compose ps'   # 期望 Up
+ssh oy@100.110.148.14 'docker stats --no-stream oy-blog-python-agent'                          # RSS 约 300-400MB
+# 冒烟：脚本结尾自动执行（容器内 /docs -> 200）；再走博客前端对话全链路验收
+```
