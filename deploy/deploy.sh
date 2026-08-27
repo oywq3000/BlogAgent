@@ -33,6 +33,13 @@ case "$SSH_BIN" in
   /c/Windows/*) export MSYS_NO_PATHCONV=1 ;;
 esac
 
+# --sync-config 需要本地 deploy/.env（服务器专用配置，不入库）；缺失时给出明确提示
+if [ "$SYNC_CONFIG" = "1" ] && [ ! -f "${REPO_ROOT}/deploy/.env" ]; then
+  echo "!! 缺少 deploy/.env（服务器专用配置，不入库）。"
+  echo "!! 请先: cp deploy/.env.example deploy/.env 并填真实值（DEEPSEEK_API_KEY / ES_PASSWORD 等）"
+  exit 1
+fi
+
 if [ "$ROLLBACK" = "1" ]; then
   echo "==> 回滚源码（恢复上次构建快照并重建镜像）"
   "${SSH_BIN}" "$SSH_TARGET" "cd $REMOTE_DIR && [ -f code.bak.tar.gz ] || { echo '没有可回滚的快照'; exit 1; } && rm -rf app && tar -xzf code.bak.tar.gz && cd deploy && $COMPOSE_CMD up -d --build"
