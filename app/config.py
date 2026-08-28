@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     mock_llm: bool = False
 
     article_content_max_chars: int = 4000
+    moderation_content_max_chars: int = 8000
     search_page_size: int = 5
 
     @field_validator("thinking_mode")
