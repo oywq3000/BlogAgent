@@ -26,6 +26,7 @@
 ### Task 1: 环境依赖 + DeepSeek thinking 探测（风险验证）
 
 **Files:**
+
 - Create: `requirements.txt`
 - Create: `.env.example`
 - Create: `.env`（用户填真实值，gitignore 已覆盖）
@@ -33,6 +34,7 @@
 - Create: `scripts/probe_result.md`（探测结论记录）
 
 **Interfaces:**
+
 - Consumes: 无（首个任务）
 - Produces: `requirements.txt`（后续任务安装依赖的基础）、`scripts/probe_result.md` 记录 ChatDeepSeek 的 thinking 参数用法结论，Task 6 的 `build_chat_model` 实现以它为准
 
@@ -201,6 +203,7 @@ cd /g/agentWorkplace/BlogAgent && git add requirements.txt .env.example scripts/
 ### Task 2: 项目骨架 + 配置模块（pydantic-settings）
 
 **Files:**
+
 - Create: `pytest.ini`
 - Create: `app/__init__.py`（空文件）
 - Create: `app/config.py`
@@ -209,6 +212,7 @@ cd /g/agentWorkplace/BlogAgent && git add requirements.txt .env.example scripts/
 - Delete: `main.py`（仓库根目录的空文件，应用入口在 `app/main.py`，Task 8 创建）
 
 **Interfaces:**
+
 - Consumes: 无
 - Produces: `Settings`（字段见下）、`get_settings() -> Settings`（lru_cache）、`Settings.require_api_key()`。Task 5/6/8 依赖这些名字。
 
@@ -359,10 +363,12 @@ git add pytest.ini app/ tests/ && git commit -m "feat: 项目骨架与配置模�
 ### Task 3: SSE 协议帧序列化
 
 **Files:**
+
 - Create: `app/sse_protocol.py`
 - Test: `tests/test_protocol.py`
 
 **Interfaces:**
+
 - Consumes: 无
 - Produces: `sse_event(name: str, data: dict) -> str`、`sse_error(code: int, message: str) -> str`。Task 8 用它生成所有协议帧。
 
@@ -451,10 +457,12 @@ git add app/sse_protocol.py tests/test_protocol.py && git commit -m "feat: SSE �
 ### Task 4: 活动流注册表（stop 取消语义）
 
 **Files:**
+
 - Create: `app/stream_registry.py`
 - Test: `tests/test_registry.py`
 
 **Interfaces:**
+
 - Consumes: 无
 - Produces: `class StreamRegistry`，方法 `register(conversation_id: str, task: asyncio.Task) -> None`（同会话旧任务自动取消）、`get(conversation_id) -> asyncio.Task | None`、`cancel(conversation_id) -> bool`、`remove(conversation_id) -> None`；模块级单例 `registry`。Task 8 使用。
 
@@ -599,11 +607,13 @@ git add app/stream_registry.py tests/test_registry.py && git commit -m "feat: �
 ### Task 5: 博客检索三工具（直连 ES）
 
 **Files:**
+
 - Create: `app/agent/__init__.py`（空文件）
 - Create: `app/agent/tools.py`
 - Test: `tests/test_tools.py`
 
 **Interfaces:**
+
 - Consumes: `Settings`（Task 2）
 - Produces: `build_es_client(settings: Settings) -> httpx.AsyncClient`；`build_tools(settings: Settings, client: httpx.AsyncClient | None = None) -> list`，返回 `[search_articles, get_article_content, list_articles]` 三个 `@tool`。Task 7 把工具列表交给 ToolNode。
 
@@ -907,11 +917,13 @@ git add app/agent/tools.py app/agent/__init__.py tests/test_tools.py && git comm
 ### Task 6: 模型工厂与系统提示词
 
 **Files:**
+
 - Create: `app/llm.py`
 - Create: `app/agent/prompts.py`
 - Test: `tests/test_llm.py`
 
 **Interfaces:**
+
 - Consumes: `Settings`（Task 2）、`scripts/probe_result.md` 的探测结论（Task 1，默认按策略 A：`extra_body={"thinking": {"type": "enabled"}}`）
 - Produces: `select_model_name(model_field: str | None, settings: Settings) -> str`；`build_chat_model(deep_thinking: bool, model_field: str | None, settings: Settings) -> BaseChatModel`；`MockChatModel`（运行时联调假模型，`MOCK_LLM=1` 时使用）。Task 7/8 使用。
 
@@ -1115,10 +1127,12 @@ git add app/llm.py app/agent/prompts.py tests/test_llm.py && git commit -m "feat
 ### Task 7: LangGraph Agent 图
 
 **Files:**
+
 - Create: `app/agent/graph.py`
 - Test: `tests/test_graph.py`
 
 **Interfaces:**
+
 - Consumes: `SYSTEM_PROMPT`（Task 6）、`build_tools`（Task 5）、`build_chat_model`/`get_settings`（Task 6/2）
 - Produces: `class AgentState`（`messages: Annotated[list, add_messages]`）；`messages_from_request(history: list[dict], user_message: str) -> list[BaseMessage]`；`build_graph(model: BaseChatModel, tools: list) -> CompiledStateGraph`；`get_graph(deep_thinking: bool, model_field: str | None) -> CompiledStateGraph`（lru_cache 按参数缓存）。Task 8 使用。
 
@@ -1292,11 +1306,13 @@ git add app/agent/graph.py tests/test_graph.py && git commit -m "feat: LangGraph
 ### Task 8: FastAPI 端点与流式集成
 
 **Files:**
+
 - Create: `app/main.py`
 - Create: `tests/conftest.py`
 - Test: `tests/test_stream.py`
 
 **Interfaces:**
+
 - Consumes: `sse_event`/`sse_error`（Task 3）、`registry`（Task 4）、`get_graph`/`messages_from_request`（Task 7）、`get_settings`（Task 2）
 - Produces: `app: FastAPI`（`POST /chat/stream`、`POST /chat/stop`）、`map_model_error(e: Exception) -> tuple[int, str]`。uvicorn 入口：`python -m uvicorn app.main:app`。
 
@@ -1642,10 +1658,12 @@ git add app/main.py tests/conftest.py tests/test_stream.py && git commit -m "fea
 ### Task 9: MOCK 模式协议集成验证 + README
 
 **Files:**
+
 - Create: `README.md`
 - Test: 无新增测试（本任务是运行验证 + 文档）
 
 **Interfaces:**
+
 - Consumes: 全部（Task 1-8）
 - Produces: `README.md`（启动方法、env 表、验证清单）。真实联调（Task 10）以它为手册。
 
@@ -1694,6 +1712,7 @@ Expected：B 返回 `{"ok":true,...}`；A 的流立即结束且**没有** done �
 - [ ] **Step 6: 停掉服务，编写 README.md**
 
 README 内容（结构固定）：
+
 1. 项目简介（博客 AI Agent，替换 agent_stub.py，Java 零改动）
 2. 环境准备（conda ai-agent、`pip install -r requirements.txt`、复制 .env.example 为 .env）
 3. 环境变量表（照抄 .env.example 注释）
@@ -1713,10 +1732,12 @@ git add README.md && git commit -m "docs: README 与 MOCK 联调验证说明"
 ### Task 10: 真实 DeepSeek 全链路联调（验收）
 
 **Files:**
+
 - Modify: `README.md`（勾选验收清单并记录实测结果）
 - Test: 无新增测试（手动验收，按规格 §11）
 
 **Interfaces:**
+
 - Consumes: 全部。需要：真实 DEEPSEEK_API_KEY（.env 已配）、ES 可直连（Tailscale IP + 凭据已配）、Java 微服务与前端可运行（用户环境）
 
 - [ ] **Step 1: 启动真实模式服务**
@@ -1730,6 +1751,7 @@ Expected：启动无报错（.env 的 key 生效，fail-fast 通过）。
 - [ ] **Step 2: 直连验证四能力（curl）**
 
 依次执行并在 README 记录输出摘要：
+
 1. 纯对话：`message="你好，请介绍一下你自己"` → 有 token 流，结尾 done
 2. 深度思考：`deepThinking=true` → 先 thinking 流（DeepSeek 真实推理）后 token
 3. RAG：`message="博客里有没有关于微服务的文章？"` → 输出应引用真实文章标题（对照 ES 中 12 篇文章验证准确性）

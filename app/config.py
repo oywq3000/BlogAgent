@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     es_username: str = ""
     es_password: str = ""
 
-    model_default: str = "deepseek-chat"
-    model_allowlist: list[str] = ["deepseek-chat", "deepseek-reasoner"]
+    model_default: str = "deepseek-v4-flash"
+    model_allowlist: list[str] = ["deepseek-v4-flash", "deepseek-v4-pro"]
     thinking_mode: str = "hybrid"  # hybrid=deepseek-chat+thinking 参数 / reasoner=deepseek-reasoner
 
     mock_llm: bool = False
