@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""FastAPI 入口：Java↔Python 协议的两个端点（规格 §4）。
+"""FastAPI 入口：Java↔Python 协议端点（规格 §4）。
 
 POST /chat/stream -> SSE（token/thinking/done/error）
 POST /chat/stop   -> {"ok": true}
+POST /moderate/article -> {"verdict","reason"}（文章 AI 审核）
 无鉴权，仅内网直连。
 """
 import asyncio
@@ -10,11 +11,13 @@ import logging
 import uuid
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessageChunk
 
 from app.agent.graph import get_graph, messages_from_request
 from app.config import get_settings
+from app.moderation import moderate_content
 from app.sse_protocol import sse_error, sse_event
 from app.stream_registry import registry
 
@@ -118,3 +121,21 @@ async def chat_stop(body: dict) -> dict:
     conversation_id = str(body.get("conversationId") or "")
     registry.cancel(conversation_id)
     return {"ok": True, "conversationId": conversation_id}
+
+
+@app.post("/moderate/article")
+def moderate_article(body: dict):
+    """文章 AI 审核（Java 同步调用）。
+
+    请求：{"articleId","title","summary","content"}（content=Markdown 纯文本）
+    响应：{"verdict":"approve|reject|manual","reason":"..."}
+    参数缺失 → 422 {"code":422,"message":"参数不完整"}
+    """
+    article_id = str(body.get("articleId") or "").strip()
+    title = str(body.get("title") or "").strip()
+    summary = str(body.get("summary") or "")
+    content = str(body.get("content") or "")
+    if not article_id or not title or not content:
+        return JSONResponse(status_code=422, content={"code": 422, "message": "参数不完整"})
+    verdict, reason = moderate_content(article_id, title, summary, content, settings)
+    return {"verdict": verdict, "reason": reason}

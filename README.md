@@ -48,6 +48,7 @@ cp .env.example .env
 | `MODEL_ALLOWLIST`           | 允许使用的模型列表：`deepseek-chat,deepseek-reasoner`                                  |
 | `MOCK_LLM`                  | `1` = 联调假模式（固定假回复 + 模拟思考流，不花 API 额度），默认 `0`                 |
 | `ARTICLE_CONTENT_MAX_CHARS` | 文章全文截断长度（控制上下文），默认`4000`                                             |
+| `MODERATION_CONTENT_MAX_CHARS` | 审核文本截断长度（控制审核成本），默认 `8000`                                     |
 | `SEARCH_PAGE_SIZE`          | 搜索默认返回条数，默认`5`                                                              |
 
 ## 4. 本地运行
@@ -77,6 +78,7 @@ Java agent-service 通过配置 `agent.python.base-url`（默认即 `http://loca
 | --------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
 | `POST /chat/stream` | `{conversationId, userId, message, history:[{role,content}], deepThinking, model}` | `text/event-stream`，事件 `token` / `thinking` / `done` / `error` |
 | `POST /chat/stop`   | `{conversationId}`                                                                 | `{"ok": true, "conversationId": "..."}`                                   |
+| `POST /moderate/article` | `{articleId, title, summary, content}`                                          | `{"verdict":"approve|reject|manual","reason":"..."}`，参数缺失 422            |
 
 ### 帧格式
 
