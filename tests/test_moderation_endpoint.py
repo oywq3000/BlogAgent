@@ -8,9 +8,9 @@ def test_missing_params_422():
     assert resp.status_code == 422
 
 
-def test_missing_article_id_422():
-    resp = moderate_article({"articleId": "", "title": "标题", "content": "正文"})
-    assert resp.status_code == 422
+def test_empty_article_id_accepted():
+    resp = moderate_article({"articleId": "", "title": "标题", "content": "正常内容"})
+    assert resp == {"verdict": "approve", "reason": "【MOCK】联调放行"}
 
 
 def test_mock_approve():

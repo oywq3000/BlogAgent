@@ -129,13 +129,14 @@ def moderate_article(body: dict):
 
     请求：{"articleId","title","summary","content"}（content=Markdown 纯文本）
     响应：{"verdict":"approve|reject|manual","reason":"..."}
-    参数缺失 → 422 {"code":422,"message":"参数不完整"}
+    title/content 缺失 → 422 {"code":422,"message":"参数不完整"}
+    （articleId 可为空——新文章尚未落库，仅作日志参考）
     """
     article_id = str(body.get("articleId") or "").strip()
     title = str(body.get("title") or "").strip()
     summary = str(body.get("summary") or "")
     content = str(body.get("content") or "")
-    if not article_id or not title or not content:
+    if not title or not content:
         return JSONResponse(status_code=422, content={"code": 422, "message": "参数不完整"})
     verdict, reason = moderate_content(article_id, title, summary, content, settings)
     return {"verdict": verdict, "reason": reason}
