@@ -3,15 +3,33 @@
 
 调用方：Java article-service 发布文章时同步调用，判定结果直接决定文章状态。
 健壮性约定：模型输出解析失败一律回退 manual（转人工），绝不放行也绝不误杀。
+
+解析链路（双保险）：
+1. with_structured_output(json_mode) 直接产出 ModerationVerdict（pydantic 校验白名单）；
+2. 结构化解析失败 → _parse_verdict 对原始文本容错解析；
+3. 仍失败 → 回退 manual。
 """
 import json
 import re
+from typing import Literal
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_deepseek import ChatDeepSeek
+from pydantic import BaseModel
 
 from app.config import Settings
+
+
+class ModerationVerdict(BaseModel):
+    """审核判定的结构化输出契约（pydantic 规定 LLM 输出的数据类型）。
+
+    verdict 白名单由 Literal 在解析时强制校验；reason 不设 max_length——
+    长说明不应把合法判定误转 manual，截断由调用方在返回处完成。
+    """
+
+    verdict: Literal["approve", "reject", "manual"]
+    reason: str = ""
 
 MODERATION_PROMPT = """你是博客文章审核员。根据以下规则审核文章，判断是否违规。
 
@@ -33,8 +51,8 @@ MODERATION_PROMPT = """你是博客文章审核员。根据以下规则审核文
 
 
 def _build_model(settings: Settings) -> BaseChatModel:
-    """审核专用模型：默认模型 + 非流式 + 60s 超时。
-
+    """
+    审核专用模型：默认模型 + 非流式 + 60s 超时。
     不复用 llm.py 的 build_chat_model——那是聊天/思考流专用（streaming=True），
     审核只需一次完整 invoke。
     """
@@ -74,6 +92,8 @@ def moderate_content(
 ) -> tuple[str, str]:
     """审核文章 -> (verdict, reason)。
 
+    真实链路：with_structured_output(json_mode) 约束模型输出为 ModerationVerdict，
+    解析失败再走 _parse_verdict 容错解析，最终兜底 manual。
     MOCK_LLM=1 联调模式：正文含"违规"→reject、含"歧义"→manual、否则 approve，
     无 API key 也能全链路验证三种结果。
     """
@@ -85,7 +105,14 @@ def moderate_content(
             return "manual", "【MOCK】命中触发词：歧义"
         return "approve", "【MOCK】联调放行"
     model = _build_model(settings)
-    resp = model.invoke(
+    structured = model.with_structured_output(
+        ModerationVerdict, method="json_mode", include_raw=True
+    )
+    out = structured.invoke(
         [SystemMessage(content=MODERATION_PROMPT), HumanMessage(content=full_text)]
     )
-    return _parse_verdict(str(resp.content))
+    parsed = out["parsed"]
+    if parsed is not None:
+        return parsed.verdict, parsed.reason.strip()[:500]
+    # 结构化解析失败 → 原容错解析兜底（仍失败则回退 manual）
+    return _parse_verdict(str(out["raw"].content))

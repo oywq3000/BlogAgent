@@ -139,4 +139,5 @@ def moderate_article(body: dict):
     if not title or not content:
         return JSONResponse(status_code=422, content={"code": 422, "message": "参数不完整"})
     verdict, reason = moderate_content(article_id, title, summary, content, settings)
+    print(verdict,reason)
     return {"verdict": verdict, "reason": reason}

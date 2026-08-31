@@ -105,8 +105,8 @@ Java agent-service 通过配置 `agent.python.base-url`（默认即 `http://loca
 cd /g/agentWorkplace/BlogAgent && MOCK_LLM=1 /d/tool1/anancoda/envs/ai-agent/python.exe -m pytest -v
 ```
 
-当前全量 64 个测试：63 个通过 + 1 个预存失败（`tests/test_config.py::test_defaults` 的模型默认值断言未随 deepseek-v4-flash 同步，与本功能无关）。
-模块分布：config 6 / graph 5 / llm 9 / moderation 10 / moderation_endpoint 4 / protocol 6 / registry 9 / stream 9 / tools 6。
+当前全量 68 个测试：67 个通过 + 1 个预存失败（`tests/test_config.py::test_defaults` 的模型默认值断言未随 deepseek-v4-flash 同步，与本功能无关）。
+模块分布：config 6 / graph 5 / llm 9 / moderation 14 / moderation_endpoint 4 / protocol 6 / registry 9 / stream 9 / tools 6。
 
 ## 7. 验收清单
 
