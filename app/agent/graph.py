@@ -41,6 +41,8 @@ def messages_from_request(history: list[dict] | None, user_message: str) -> list
 
 
 def build_graph(model: BaseChatModel, tools: list) -> CompiledStateGraph:
+    
+    # 模型绑定工具
     model_with_tools = model.bind_tools(tools)
 
     def agent_node(state: AgentState) -> dict:
