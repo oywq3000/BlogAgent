@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     moderation_content_max_chars: int = 8000
     search_page_size: int = 5
 
+    embedding_model_path: str = "F:/models/bge-large-zh-v1.5"
+    embedding_device: str = "cuda"  # 加载失败自动回退 cpu
+    hybrid_search: bool = True  # 混合检索（BM25+向量+RRF）总开关
+    chunk_max_tokens: int = 256  # 切块目标 token 数
+    chunk_overlap_tokens: int = 32  # 超长段窗口重叠 token 数
+
     @field_validator("thinking_mode")
     @classmethod
     def _check_thinking_mode(cls, v: str) -> str:

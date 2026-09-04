@@ -48,3 +48,12 @@ def test_get_settings_cached(monkeypatch):
     assert s1 is s2
     assert s1.agent_port == 9999
     get_settings.cache_clear()
+
+
+def test_hybrid_search_defaults():
+    s = Settings(_env_file=None)
+    assert s.embedding_model_path == "F:/models/bge-large-zh-v1.5"
+    assert s.embedding_device == "cuda"
+    assert s.hybrid_search is True
+    assert s.chunk_max_tokens == 256
+    assert s.chunk_overlap_tokens == 32
