@@ -34,7 +34,7 @@ def test_embed_query_has_prefix(monkeypatch):
     monkeypatch.setattr(emb, "SentenceTransformer", FakeModel)
     vec = emb.embed_query("微服务")
     assert FakeModel.instances == 1
-    assert emb._embedder.calls[0] == "为这个句子生成表示以用于检索相关文章:微服务"
+    assert emb._embedder.calls[0] == "为这个句子生成表示以用于检索相关文章：微服务"
     assert isinstance(vec, list) and len(vec) == 1
 
 

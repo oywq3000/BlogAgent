@@ -9,7 +9,7 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 # bge-large-zh-v1.5 官方查询指令：查询侧必须加，文档侧不加
-_QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章:"
+_QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章："
 
 _embedder: SentenceTransformer | None = None
 
