@@ -86,17 +86,29 @@ def _split_long_block(
     start = 0
     n = len(lines)
     while start < n:
+        if line_tokens[start] > max_tokens:
+            # 行内兜底：超长单行按字符窗口切（中文 1 字≈1 token 近似），保证不触发模型 512 截断
+            chunks.extend(_split_line_by_chars(lines[start], max_tokens, overlap_tokens))
+            start += 1
+            continue
         end = start
-        while end < n and prefix[end + 1] - prefix[start] <= max_tokens:
+        while end < n and prefix[end + 1] - prefix[start] <= max_tokens:  # <= 让窗口填满到 max_tokens
             end += 1
-        end = max(end, start + 1)  # 至少一行，防死循环；单行超限则该行自成一 chunk
+        end = max(end, start + 1)  # 至少一行，防死循环
         chunks.append("\n".join(lines[start:end]))
         if end >= n:
             break
-        target = prefix[end] - overlap_tokens  # 下一窗口起点：与当前窗口尾部重叠 overlap_tokens
+        target = prefix[end] - overlap_tokens  # 下一窗口起点：窗口 [start,end) 尾部绝对位置是 prefix[end]，重叠 overlap_tokens
         start = end
         while start > 0 and prefix[start] > target:
             start -= 1
         if start >= end:  # 防御（overlap=0 等）：至少前进一行
             start = end - 1
     return chunks
+
+
+def _split_line_by_chars(line: str, max_tokens: int, overlap_tokens: int) -> list[str]:
+    """行内字符窗口切：width=max_tokens 字符、step=max_tokens-overlap_tokens（至少 1）。"""
+    width = max(max_tokens, 1)
+    step = max(max_tokens - overlap_tokens, 1)
+    return [line[i : i + width] for i in range(0, len(line), step)]

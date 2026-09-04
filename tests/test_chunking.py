@@ -15,11 +15,21 @@ def test_short_paragraphs_merge_into_one_chunk():
     assert "第一段" in chunks[0] and "第三段" in chunks[0]
 
 
-def test_paragraph_exceeding_max_starts_new_chunk():
+def test_long_paragraph_split_into_windows():
     text = "A" * 60 + "\n\n" + "B" * 60
-    chunks = split_content(text, count_tokens=len, max_tokens=50)
-    assert len(chunks) == 2
-    assert chunks[0] == "A" * 60  # 单段超限不切（段落完整），仅分段
+    chunks = split_content(text, count_tokens=len, max_tokens=50, overlap_tokens=10)
+    assert len(chunks) >= 4  # A 段行内切多块 + B 段行内切多块
+    assert all(len(c) <= 50 for c in chunks)
+    assert chunks[0] == "A" * 50
+
+
+def test_single_long_line_split_by_chars():
+    line = "长" * 100
+    chunks = split_content(line, count_tokens=len, max_tokens=20, overlap_tokens=5)
+    assert len(chunks) >= 5  # 100/15 ≈ 7 块
+    assert chunks[0] == "长" * 20
+    assert chunks[1].startswith("长" * 15)  # 重叠 5 字符
+    assert all(len(c) <= 20 for c in chunks)
 
 
 def count_lines(text: str) -> int:
