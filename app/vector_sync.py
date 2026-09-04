@@ -99,7 +99,7 @@ async def sync_vectors(
         for i, (piece, vec) in enumerate(zip(pieces, vectors)):
             doc_id = f"{article['id']}-{i}"
             try:
-                await client.put(
+                resp = await client.put(
                     f"/article_chunks/_doc/{doc_id}",
                     json={
                         "article_id": article["id"],
@@ -112,6 +112,7 @@ async def sync_vectors(
                     },
                     auth=auth,
                 )
+                resp.raise_for_status()  # 非 2xx 也计入失败（httpx 默认不抛 4xx/5xx）
                 updated += 1
             except httpx.HTTPError as e:
                 logger.warning("写回 chunk 失败 %s: %s", doc_id, e)

@@ -102,6 +102,26 @@ def test_sync_vectors_continues_on_single_failure():
     assert result["failed"] == 1
 
 
+def test_sync_vectors_counts_http_error_status_as_failed():
+    async def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if request.method == "DELETE" or (request.method == "PUT" and url.endswith("/article_chunks")):
+            return httpx.Response(200, json={"acknowledged": True})
+        if url.endswith("/articles/_search"):
+            return httpx.Response(200, json={"hits": {"hits": [
+                {"_source": {"id": "a1", "title": "T", "tags": [], "createdAt": None, "content": "AAA"}},
+                {"_source": {"id": "a2", "title": "U", "tags": [], "createdAt": None, "content": "BBBB"}},
+            ]}})
+        if "/article_chunks/_doc/" in url and url.endswith("/a1-0"):
+            return httpx.Response(500, json={"error": "boom"})
+        return httpx.Response(200, json={"result": "created"})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://es.test")
+    result = run(sync_vectors(make_settings(), client, embed_documents=fake_embed_documents, count_tokens=len))
+    assert result["updated"] == 1
+    assert result["failed"] == 1
+
+
 def test_rebuild_vectors_equals_sync():
     async def handler(request: httpx.Request) -> httpx.Response:
         url = str(request.url)
