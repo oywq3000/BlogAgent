@@ -18,10 +18,10 @@ from .search_articles import build_search_articles
 __all__ = ["build_tools", "build_es_client"]
 
 
-def build_tools(settings: Settings, client: httpx.AsyncClient | None = None) -> list:
+def build_tools(settings: Settings, client: httpx.AsyncClient | None = None, embed_query=None) -> list:
     client = client or build_es_client(settings)
     return [
-        build_search_articles(settings, client),
+        build_search_articles(settings, client, embed_query=embed_query),
         build_get_article_content(settings, client),
         build_list_articles(settings, client),
     ]
