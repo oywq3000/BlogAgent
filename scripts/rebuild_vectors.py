@@ -6,6 +6,10 @@
 """
 import asyncio
 import logging
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 允许从任意 cwd 直接运行脚本
 
 from app.config import get_settings
 from app.vector_sync import rebuild_vectors

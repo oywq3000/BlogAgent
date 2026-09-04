@@ -38,7 +38,8 @@ def _resolve_count_tokens(count_tokens):
     if count_tokens is None:
         def _impl(text: str) -> int:
             from app.embedding import get_embedder
-            return len(get_embedder().tokenizer.encode(text))
+            # 显式截断到 512：只用于"是否超 max_tokens"判断，避免对超长行完整 tokenize 触发 transformers 警告
+            return len(get_embedder().tokenizer.encode(text, truncation=True, max_length=512))
         return _impl
     return count_tokens
 

@@ -114,7 +114,8 @@ def split_content(content: str, count_tokens: Callable[[str], int],
 1. **Markdown 分段**：```` ``` ```` 围栏代码块视为独立段；其余按空行分隔为段落
 2. **段累积**：相邻短段落合并累积，达到 `max_tokens` 即成一个 chunk——**段落级 chunk 之间不重叠**（段落是完整语义单元，边界完整，不切坏语义）
 3. **token 兜底**：单个段超过 `max_tokens`（如超长无空行文字）→ 该段按 token 窗口切分，窗口 `max_tokens`、步长 `max_tokens - overlap_tokens`——**窗口间重叠 `overlap_tokens`**，避免边界上下文丢失
-4. 输出 chunk 文本列表（每项非空）
+4. **行内兜底**：超长**单行**（无换行）无法按行窗口切 → 行内按**字符窗口**切分（中文 1 字≈1 token 近似，字符窗口 `max_tokens`、重叠 `overlap_tokens`），保证任何 chunk 不超过 `max_tokens` 量级、远低于模型 512 token 上限——否则整行超限会触发模型截断丢失语义（真实验证：2419 字符单行文章被截断到 512）
+5. 输出 chunk 文本列表（每项非空）
 
 ### 4.3 `app/vector_sync.py`
 
