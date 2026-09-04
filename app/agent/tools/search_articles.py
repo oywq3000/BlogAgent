@@ -130,6 +130,7 @@ def build_search_articles(
         # 路2：knn 查 article_chunks（仅混合开启且 embedding 可用；失败不影响路1）
         knn_hits = []
         if settings.hybrid_search:
+            query_vector = None  # 惰性导入失败时保持 None，跳过 knn 路（防 UnboundLocalError）
             effective_embed_query = injected_embed_query
             if effective_embed_query is None:
                 # 惰性导入：构建工具时不触碰 embedding，失败即降级仅 BM25 路

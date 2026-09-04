@@ -237,3 +237,28 @@ async def test_hybrid_knn_hits_fused_into_result():
     assert result[0]["id"] == "K1"
     assert result[0]["title"] == "向量命中文"
     assert result[0]["snippet"] == "这是一段来自 chunk 的内容"[:150]
+
+
+@pytest.mark.asyncio
+async def test_hybrid_import_failure_falls_back_to_bm25(monkeypatch):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "app.embedding":
+            raise ImportError("embedding unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    urls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        urls.append(str(request.url))
+        return httpx.Response(200, json={"hits": {"hits": []}})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://es.test")
+    tools = build_tools(make_settings(), client=client)  # 不注入 embed_query
+    result = await tools[0].ainvoke({"keyword": "微服务"})
+    assert urls == ["http://es.test/articles/_search"]  # 仅 BM25 路
+    assert json.loads(result) == []
