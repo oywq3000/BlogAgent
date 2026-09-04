@@ -4,7 +4,7 @@
 查询逻辑是 search-service 的 Python 侧最小重实现（status 过滤 + highlight）。
 工具执行失败不抛异常：错误文本回给模型，由模型兜底回答（规格 §6）。
 
-对外保持原 tools 模块接口：build_tools(settings, client) -> [search_articles, get_article_content, list_articles]。
+对外保持原 tools 模块接口：build_tools(settings, client=None, embed_query=None) -> [search_articles, get_article_content, list_articles]。
 """
 import httpx
 

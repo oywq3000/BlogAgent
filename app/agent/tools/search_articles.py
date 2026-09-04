@@ -107,9 +107,7 @@ def build_search_articles(
 ) -> BaseTool:
     # 工具请求始终按 settings 的凭据认证 ES：外部传入的 client（如测试的 MockTransport）可能不含 auth
     auth = (settings.es_username, settings.es_password) if settings.es_username else None
-    if embed_query is None:
-        from app.embedding import embed_query as _default_embed_query
-        embed_query = _default_embed_query
+    injected_embed_query = embed_query  # 保留注入（测试/显式传入）；构建工具时不触碰 embedding 模块
 
     @tool
     async def search_articles(keyword: str) -> str:
@@ -132,11 +130,20 @@ def build_search_articles(
         # 路2：knn 查 article_chunks（仅混合开启且 embedding 可用；失败不影响路1）
         knn_hits = []
         if settings.hybrid_search:
-            try:
-                query_vector = embed_query(keyword)
-            except Exception as e:
-                logger.warning("embedding 失败，仅 BM25 路：%s", e)
-                query_vector = None
+            effective_embed_query = injected_embed_query
+            if effective_embed_query is None:
+                # 惰性导入：构建工具时不触碰 embedding，失败即降级仅 BM25 路
+                try:
+                    from app.embedding import embed_query as _default_embed_query
+                    effective_embed_query = _default_embed_query
+                except Exception as e:
+                    logger.warning("embedding 模块不可用，仅 BM25 路：%s", e)
+            if effective_embed_query is not None:
+                try:
+                    query_vector = effective_embed_query(keyword)
+                except Exception as e:
+                    logger.warning("embedding 失败，仅 BM25 路：%s", e)
+                    query_vector = None
             if query_vector is not None:
                 try:
                     knn_resp = await client.post(

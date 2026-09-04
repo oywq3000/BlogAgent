@@ -83,6 +83,7 @@ async def test_search_articles_query_shape_and_auth():
     assert all(a.startswith("Basic ") for a in captured["auths"])
     bm25, knn = captured["bodies"]
     assert bm25["query"]["bool"]["filter"] == {"term": {"status": "published"}}
+    assert bm25["query"]["bool"]["must"]["multi_match"]["query"] == "微服务"
     assert bm25["query"]["bool"]["must"]["multi_match"]["fields"] == ["title^3", "content", "summary"]
     assert bm25["size"] == 5
     assert "title" in bm25["highlight"]["fields"]
@@ -218,3 +219,21 @@ async def test_knn_400_falls_back_to_bm25_only():
     result = await tools[0].ainvoke({"keyword": "微服务"})
     assert len(urls) == 2  # 发了两路，knn 400 被吞
     assert json.loads(result)[0]["title"] == "SSE协议"  # BM25 路结果照常返回
+
+
+@pytest.mark.asyncio
+async def test_hybrid_knn_hits_fused_into_result():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/article_chunks/" in str(request.url):
+            return httpx.Response(200, json={"hits": {"hits": [
+                {"_source": {"article_id": "K1", "title": "向量命中文", "tags": [], "createdAt": "t",
+                             "content": "这是一段来自 chunk 的内容", "chunk_index": 0}},
+            ]}})
+        return httpx.Response(200, json={"hits": {"hits": []}})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://es.test")
+    tools = build_tools(make_settings(), client=client, embed_query=fake_embed_query)
+    result = json.loads(await tools[0].ainvoke({"keyword": "微服务"}))
+    assert result[0]["id"] == "K1"
+    assert result[0]["title"] == "向量命中文"
+    assert result[0]["snippet"] == "这是一段来自 chunk 的内容"[:150]
