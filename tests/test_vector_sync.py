@@ -60,7 +60,7 @@ def test_sync_vectors_rebuilds_chunk_index():
             if url.endswith("/articles/_search"):
                 return httpx.Response(200, json={"hits": {"hits": [
                     {"_source": {"id": "a1", "title": "SSE协议", "tags": [], "createdAt": "2026-08-15",
-                                 "content": "第一段。\n\n第二段。"}},
+                                 "status": "published", "content": "第一段。\n\n第二段。"}},
                 ]}})
             if method == "PUT" and "/article_chunks/_doc/" in url:
                 return httpx.Response(200, json={"result": "created"})
@@ -79,6 +79,7 @@ def test_sync_vectors_rebuilds_chunk_index():
     doc = doc_call[2]
     assert doc["article_id"] == "a1" and doc["chunk_index"] == 0
     assert doc["title"] == "SSE协议" and doc["content"] == "第一段。\n\n第二段。"
+    assert doc["status"] == "published"
     assert doc["content_vector"] == [10.0, 0.0]  # fake: len("第一段。\n\n第二段。")=10
 
 
@@ -89,8 +90,8 @@ def test_sync_vectors_continues_on_single_failure():
             return httpx.Response(200, json={"acknowledged": True})
         if url.endswith("/articles/_search"):
             return httpx.Response(200, json={"hits": {"hits": [
-                {"_source": {"id": "a1", "title": "T", "tags": [], "createdAt": None, "content": "AAA"}},
-                {"_source": {"id": "a2", "title": "U", "tags": [], "createdAt": None, "content": "BBBB"}},
+                {"_source": {"id": "a1", "title": "T", "tags": [], "createdAt": None, "status": "published", "content": "AAA"}},
+                {"_source": {"id": "a2", "title": "U", "tags": [], "createdAt": None, "status": "published", "content": "BBBB"}},
             ]}})
         if "/article_chunks/_doc/" in url and url.endswith("/a1-0"):
             raise httpx.ConnectError("es down", request=request)

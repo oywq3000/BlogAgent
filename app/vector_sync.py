@@ -13,6 +13,7 @@ _INDEX_MAPPINGS = {
     "properties": {
         "article_id": {"type": "keyword"},
         "chunk_index": {"type": "integer"},
+        "status": {"type": "keyword"},
         "content": {"type": "text"},
         "title": {"type": "text"},
         "tags": {"type": "keyword"},
@@ -72,13 +73,13 @@ async def sync_vectors(
     if resp.status_code not in (200, 404):
         resp.raise_for_status()
     await ensure_index(settings, client)
-    # 2. 读文章（含全文与展示元数据）
+    # 2. 读文章（只建已发布文章，含全文与展示元数据）
     resp = await client.post(
         "/articles/_search",
         json={
-            "query": {"match_all": {}},
+            "query": {"term": {"status": "published"}},
             "size": 10000,
-            "_source": ["id", "title", "tags", "createdAt", "content"],
+            "_source": ["id", "title", "tags", "createdAt", "content", "status"],
         },
         auth=auth,
     )
@@ -104,6 +105,7 @@ async def sync_vectors(
                     json={
                         "article_id": article["id"],
                         "chunk_index": i,
+                        "status": article.get("status"),
                         "content": piece,
                         "title": article.get("title", ""),
                         "tags": article.get("tags", []),
