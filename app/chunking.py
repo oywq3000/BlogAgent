@@ -87,7 +87,7 @@ def _split_long_block(
     n = len(lines)
     while start < n:
         end = start
-        while end < n and prefix[end + 1] - prefix[start] < max_tokens:
+        while end < n and prefix[end + 1] - prefix[start] <= max_tokens:
             end += 1
         end = max(end, start + 1)  # 至少一行，防死循环；单行超限则该行自成一 chunk
         chunks.append("\n".join(lines[start:end]))
