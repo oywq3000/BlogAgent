@@ -9,6 +9,7 @@ POST /moderate/article -> {"verdict","reason"}（文章 AI 审核）
 import asyncio
 import logging
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -20,10 +21,24 @@ from app.config import get_settings
 from app.moderation import moderate_content
 from app.sse_protocol import sse_error, sse_event
 from app.stream_registry import registry
+from app.vector_sync import sync_vectors
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="blog-agent")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """启动时全量重建 chunk 索引；失败仅告警，不阻断服务（检索降级为纯 BM25 路）。"""
+    if settings.hybrid_search:
+        try:
+            result = await sync_vectors(settings)
+            logger.info("启动向量重建完成：%s", result)
+        except Exception:
+            logger.warning("启动向量重建失败，检索将仅走 BM25 路", exc_info=True)
+    yield
+
+
+app = FastAPI(title="blog-agent", lifespan=lifespan)
 
 settings = get_settings()
 settings.require_api_key()  # 启动 fail-fast：非 mock 模式缺 key 直接报错
