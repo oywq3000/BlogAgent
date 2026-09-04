@@ -65,6 +65,7 @@ PUT /article_chunks
     "properties": {
       "article_id": { "type": "keyword" },
       "chunk_index": { "type": "integer" },
+      "status": { "type": "keyword" },
       "content": { "type": "text" },
       "title": { "type": "text" },
       "tags": { "type": "keyword" },
@@ -81,7 +82,8 @@ PUT /article_chunks
 ```
 
 - **文档 id**：`{article_id}-{chunk_index}`（如 `2088-0`）
-- **chunk 即文档**：每个 chunk 一条，冗余 `title/tags/createdAt`（从文章复制）——knn-only 命中的文章无需回查 articles 即可组装完整 item
+- **chunk 即文档**：每个 chunk 一条，冗余 `title/tags/createdAt/status`（从文章复制）——knn-only 命中的文章无需回查 articles 即可组装完整 item，且 knn 的 `status: published` filter 有字段可匹配（**必须存在**，否则未映射字段的 term 查询静默返回空，向量路恒 0 命中）
+- **同步只建已发布文章**：读 articles 时 query 用 `term: {status: published}`，草稿不建 chunk
 - `l2_norm`：BGE 官方推荐欧氏距离，不用 cosine
 - **articles 索引零改动**（Java 侧零改动），新索引由 Python 侧建（PUT 幂等：已存在则跳过）
 - **全量重建策略**：chunk 是文章派生物，无法简单"缺失补齐"（文章更新后旧 chunk 需作废）——量小（12 篇/几百 chunk）直接删索引重建，启动即自愈
@@ -97,7 +99,7 @@ def embed_documents(texts: list[str]) -> list[list[float]]   # 不带前缀；�
 ```
 
 - **懒加载**：首次调用才加载模型，避免拖慢服务启动
-- **bge 指令前缀**（关键）：查询侧加 `"为这个句子生成表示以用于检索相关文章:"`，文档（passage）侧不加
+- **bge 指令前缀**（关键）：查询侧加 `"为这个句子生成表示以用于检索相关文章："`，文档（passage）侧不加
 - 超长文本由 encode 按模型 max_seq_length（512 token）截断；chunk 尺寸远小于该上限，正常不触发
 
 ### 4.2 `app/chunking.py`（纯函数，不依赖模型）

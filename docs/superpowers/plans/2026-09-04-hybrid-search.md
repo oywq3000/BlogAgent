@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- BGE：`F:/models/bge-large-zh-v1.5`（1024 维，上下文 512 token），设备 `cuda`（失败回退 `cpu`）；**查询侧加指令前缀** `"为这个句子生成表示以用于检索相关文章:"`，**文档侧不加**
+- BGE：`F:/models/bge-large-zh-v1.5`（1024 维，上下文 512 token），设备 `cuda`（失败回退 `cpu`）；**查询侧加指令前缀** `"为这个句子生成表示以用于检索相关文章："`，**文档侧不加**
 - `article_chunks` 索引：文档 id=`{article_id}-{chunk_index}`；字段 `article_id(keyword)/chunk_index(integer)/content(text)/title(text)/tags(keyword)/createdAt(date)/content_vector(dense_vector, dims=1024, index=true, similarity=l2_norm)`
 - 切块：段落优先（代码块独立段、按空行分段）+ 段累积到 `max_tokens` + 超长段 token 窗口重叠切（`overlap_tokens`）；段落级 chunk 间不重叠
 - RRF：`score = Σ 1/(60 + rank + 1)`，knn 路 chunk 按 article_id 归并取**最小 rank**
@@ -132,7 +132,7 @@ def test_embed_query_has_prefix(monkeypatch):
     monkeypatch.setattr(emb, "SentenceTransformer", FakeModel)
     vec = emb.embed_query("微服务")
     assert FakeModel.instances == 1
-    assert emb._embedder.calls[0][0] == "为这个句子生成表示以用于检索相关文章:微服务"
+    assert emb._embedder.calls[0][0] == "为这个句子生成表示以用于检索相关文章：微服务"
     assert isinstance(vec, list) and len(vec) == 1
 
 
@@ -190,7 +190,7 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 # bge-large-zh-v1.5 官方查询指令：查询侧必须加，文档侧不加
-_QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章:"
+_QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章："
 
 _embedder: SentenceTransformer | None = None
 
@@ -399,13 +399,13 @@ def _split_long_block(
     n = len(lines)
     while start < n:
         end = start
-        while end < n and prefix[end + 1] - prefix[start] < max_tokens:
+        while end < n and prefix[end + 1] - prefix[start] <= max_tokens:  # <= 让窗口填满到 max_tokens
             end += 1
         end = max(end, start + 1)  # 至少一行，防死循环；单行超限则该行自成一 chunk
         chunks.append("\n".join(lines[start:end]))
         if end >= n:
             break
-        target = prefix[end] - overlap_tokens  # 下一窗口起点：与当前窗口尾部重叠 overlap_tokens
+        target = prefix[end] - overlap_tokens  # 下一窗口起点：窗口 [start,end) 尾部绝对位置是 prefix[end]，重叠 overlap_tokens
         start = end
         while start > 0 and prefix[start] > target:
             start -= 1
@@ -676,7 +676,7 @@ async def sync_vectors(
         for i, (piece, vec) in enumerate(zip(pieces, vectors)):
             doc_id = f"{article['id']}-{i}"
             try:
-                await client.put(
+                resp = await client.put(
                     f"/article_chunks/_doc/{doc_id}",
                     json={
                         "article_id": article["id"],
@@ -689,6 +689,7 @@ async def sync_vectors(
                     },
                     auth=auth,
                 )
+                resp.raise_for_status()  # 非 2xx 也计入失败（httpx 默认不抛 4xx/5xx）
                 updated += 1
             except httpx.HTTPError as e:
                 logger.warning("写回 chunk 失败 %s: %s", doc_id, e)
