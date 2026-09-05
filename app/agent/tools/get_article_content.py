@@ -19,7 +19,7 @@ def build_get_article_content(settings: Settings, client: httpx.AsyncClient) -> 
         Args:
             article_id: 文章 id（先通过 search_articles 获得）
         Returns:
-            JSON：title 与 content（超出上限截断，并注明已截断）
+            JSON：title、content（超出上限截断，并注明已截断）与文章外链（url）
         """
         try:
             resp = await client.get(f"/articles/_doc/{article_id}", auth=auth)
@@ -38,6 +38,7 @@ def build_get_article_content(settings: Settings, client: httpx.AsyncClient) -> 
                 "title": src.get("title"),
                 "content": content,
                 "truncated": truncated,
+                "url": f"{settings.site_url}/article/{article_id}",
             },
             ensure_ascii=False,
         )

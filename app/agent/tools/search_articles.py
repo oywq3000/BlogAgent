@@ -116,7 +116,7 @@ def build_search_articles(
         Args:
             keyword: 搜索关键词，如“微服务”“SSE”
         Returns:
-            JSON 列表：每项含 id、title、tags、createdAt 与命中内容片段（snippet）
+            JSON 列表：每项含 id、title、tags、createdAt、命中内容片段（snippet）与文章外链（url）
         """
         # 路1：BM25 查 articles（原逻辑）
         try:
@@ -161,6 +161,8 @@ def build_search_articles(
                     logger.warning("knn 查询失败，仅 BM25 路：%s", e)
 
         items = _fuse(bm25_hits, knn_hits, settings.search_page_size)
+        for it in items:
+            it["url"] = f"{settings.site_url}/article/{it['id']}"
         return json.dumps(items, ensure_ascii=False)
 
     return search_articles

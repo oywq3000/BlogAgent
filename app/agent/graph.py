@@ -52,7 +52,7 @@ def build_graph(model: BaseChatModel, tools: list) -> CompiledStateGraph:
     graph.add_node("agent", agent_node)
     graph.add_node("tools", ToolNode(tools))
     graph.add_edge(START, "agent")
-    graph.add_conditional_edges("agent", tools_condition)
+    graph.add_conditional_edges("agent", tools_condition) # 条件边：根据模型输出判断是否调用工具
     graph.add_edge("tools", "agent")
     return graph.compile()
 

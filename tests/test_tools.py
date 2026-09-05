@@ -91,10 +91,12 @@ async def test_search_articles_query_shape_and_auth():
     assert knn["knn"]["query_vector"] == [0.1, 0.2, 0.3]
     assert knn["knn"]["filter"] == {"term": {"status": "published"}}  # 与 BM25 路过滤同域
     assert knn["knn"]["k"] == 25  # search_page_size * 5
-    # 高亮片段去标签、结果可解析、含标题
+    # 高亮片段去标签、结果可解析、含标题与 url 链接
     assert "<em>" not in result
     assert "SSE协议" in result
-    assert json.loads(result)[0]["title"] == "SSE协议"
+    first = json.loads(result)[0]
+    assert first["title"] == "SSE协议"
+    assert first["url"] == "https://oyblog.top/article/2088"
 
 
 @pytest.mark.asyncio
@@ -111,6 +113,7 @@ async def test_get_article_content_truncates():
 
     assert "响应式编程" in result
     assert len(json.loads(result)["content"]) == 100  # article_content_max_chars=100
+    assert json.loads(result)["url"] == "https://oyblog.top/article/a1"
 
 
 @pytest.mark.asyncio
@@ -134,8 +137,9 @@ async def test_list_articles_shape():
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://es.test")
     tools = build_tools(make_settings(), client=client)
-    result = await tools[2].ainvoke({"page": 2, "page_size": 10})
-    assert "SSE协议" in result
+    result = json.loads(await tools[2].ainvoke({"page": 2, "page_size": 10}))
+    assert result[0]["title"] == "SSE协议"
+    assert result[0]["url"] == "https://oyblog.top/article/2088"
 
 
 @pytest.mark.asyncio
@@ -237,6 +241,7 @@ async def test_hybrid_knn_hits_fused_into_result():
     assert result[0]["id"] == "K1"
     assert result[0]["title"] == "向量命中文"
     assert result[0]["snippet"] == "这是一段来自 chunk 的内容"[:150]
+    assert result[0]["url"] == "https://oyblog.top/article/K1"  # knn 命中同样带链接
 
 
 @pytest.mark.asyncio

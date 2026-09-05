@@ -20,7 +20,7 @@ def build_list_articles(settings: Settings, client: httpx.AsyncClient) -> BaseTo
             page: 页码（从 1 开始）
             page_size: 每页条数（默认 10）
         Returns:
-            JSON 列表：每项含 id、title、summary、tags、createdAt
+            JSON 列表：每项含 id、title、summary、tags、createdAt 与文章外链（url）
         """
         body = {
             "query": {"term": {"status": "published"}},
@@ -36,6 +36,8 @@ def build_list_articles(settings: Settings, client: httpx.AsyncClient) -> BaseTo
             return f"浏览文章失败：{e.__class__.__name__}，请告知用户文章列表暂不可用"
         hits = resp.json().get("hits", {}).get("hits", [])
         items = [h.get("_source", {}) for h in hits]
+        for it in items:
+            it["url"] = f"{settings.site_url}/article/{it.get('id')}"
         return json.dumps(items, ensure_ascii=False)
 
     return list_articles

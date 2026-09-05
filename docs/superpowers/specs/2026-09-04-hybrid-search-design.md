@@ -15,13 +15,13 @@
 
 ### 已验证的硬事实
 
-| 事实 | 结果 |
-|---|---|
-| BGE 模型 | 本地 `F:/models/bge-large-zh-v1.5`（bge-large-zh-v1.5，**1024 维**，上下文 512 token） |
-| GPU | ai-agent conda 环境 CUDA 可用（GTX 1650） |
-| ES 版本 | 8.17.10（`100.110.148.14:9200`，BasicAuth）——原生支持 `knn` + `dense_vector` |
-| 依赖 | 环境已装 sentence-transformers 5.7.0 / langchain-huggingface 1.2.2 |
-| 量级 | articles 索引约 12 篇，切块后约几百 chunk，全量重建秒级 |
+| 事实     | 结果                                                                                          |
+| -------- | --------------------------------------------------------------------------------------------- |
+| BGE 模型 | 本地`F:/models/bge-large-zh-v1.5`（bge-large-zh-v1.5，**1024 维**，上下文 512 token） |
+| GPU      | ai-agent conda 环境 CUDA 可用（GTX 1650）                                                     |
+| ES 版本  | 8.17.10（`100.110.148.14:9200`，BasicAuth）——原生支持 `knn` + `dense_vector`          |
+| 依赖     | 环境已装 sentence-transformers 5.7.0 / langchain-huggingface 1.2.2                            |
+| 量级     | articles 索引约 12 篇，切块后约几百 chunk，全量重建秒级                                       |
 
 ## 2. 总体架构与数据流
 
@@ -44,15 +44,15 @@ search_articles(keyword)
 
 模块划分：
 
-| 模块 | 职责 | 依赖 |
-|---|---|---|
-| `app/embedding.py`（新） | BGE 懒加载 + embed_documents / embed_query | sentence-transformers, config |
-| `app/chunking.py`（新） | 段落优先 + token 兜底 + 重叠的切块纯函数 | 无（count_tokens 注入） |
-| `app/vector_sync.py`（新） | ensure_index() + sync_vectors()（全量重建 chunk 索引） | embedding, chunking, httpx, config |
-| `scripts/rebuild_vectors.py`（新） | 手动全量重建入口 | vector_sync |
-| `app/agent/tools/search_articles.py`（改） | 两路检索 + Python RRF 融合 + 降级 | embedding, config |
-| `app/main.py`（改） | lifespan 启动时全量重建 | vector_sync |
-| `app/config.py`（改） | 新增配置项 | 无 |
+| 模块                                         | 职责                                                   | 依赖                               |
+| -------------------------------------------- | ------------------------------------------------------ | ---------------------------------- |
+| `app/embedding.py`（新）                   | BGE 懒加载 + embed_documents / embed_query             | sentence-transformers, config      |
+| `app/chunking.py`（新）                    | 段落优先 + token 兜底 + 重叠的切块纯函数               | 无（count_tokens 注入）            |
+| `app/vector_sync.py`（新）                 | ensure_index() + sync_vectors()（全量重建 chunk 索引） | embedding, chunking, httpx, config |
+| `scripts/rebuild_vectors.py`（新）         | 手动全量重建入口                                       | vector_sync                        |
+| `app/agent/tools/search_articles.py`（改） | 两路检索 + Python RRF 融合 + 降级                      | embedding, config                  |
+| `app/main.py`（改）                        | lifespan 启动时全量重建                                | vector_sync                        |
+| `app/config.py`（改）                      | 新增配置项                                             | 无                                 |
 
 ## 3. ES 索引变更
 
@@ -111,7 +111,7 @@ def split_content(content: str, count_tokens: Callable[[str], int],
 
 **切块规则（段落优先 + token 兜底 + 重叠）**：
 
-1. **Markdown 分段**：```` ``` ```` 围栏代码块视为独立段；其余按空行分隔为段落
+1. **Markdown 分段**：`` ``` `` 围栏代码块视为独立段；其余按空行分隔为段落
 2. **段累积**：相邻短段落合并累积，达到 `max_tokens` 即成一个 chunk——**段落级 chunk 之间不重叠**（段落是完整语义单元，边界完整，不切坏语义）
 3. **token 兜底**：单个段超过 `max_tokens`（如超长无空行文字）→ 该段按 token 窗口切分，窗口 `max_tokens`、步长 `max_tokens - overlap_tokens`——**窗口间重叠 `overlap_tokens`**，避免边界上下文丢失
 4. **行内兜底**：超长**单行**（无换行）无法按行窗口切 → 行内按**字符窗口**切分（中文 1 字≈1 token 近似，字符窗口 `max_tokens`、重叠 `overlap_tokens`），保证任何 chunk 不超过 `max_tokens` 量级、远低于模型 512 token 上限——否则整行超限会触发模型截断丢失语义（真实验证：2419 字符单行文章被截断到 512）
@@ -151,26 +151,26 @@ def split_content(content: str, count_tokens: Callable[[str], int],
 
 ## 6. 错误处理与降级链（延续规格 §6 哲学）
 
-| 故障 | 行为 |
-|---|---|
-| embedding 模型加载失败 / GPU 不可用 | 日志警告；跳过请求2，仅 BM25 路 |
-| `embed_query` 抛异常 | 同上（回退单路） |
-| 请求2（knn）返回 400（索引未建/字段缺失） | 日志警告；忽略向量路，仅用 BM25 路结果 |
-| 启动全量重建失败（ES 不可达） | 日志警告；**不阻断服务启动**；检索退化为纯 BM25 |
-| 请求1（BM25）失败 | 现有错误文本回模型兜底（不变） |
+| 故障                                      | 行为                                                  |
+| ----------------------------------------- | ----------------------------------------------------- |
+| embedding 模型加载失败 / GPU 不可用       | 日志警告；跳过请求2，仅 BM25 路                       |
+| `embed_query` 抛异常                    | 同上（回退单路）                                      |
+| 请求2（knn）返回 400（索引未建/字段缺失） | 日志警告；忽略向量路，仅用 BM25 路结果                |
+| 启动全量重建失败（ES 不可达）             | 日志警告；**不阻断服务启动**；检索退化为纯 BM25 |
+| 请求1（BM25）失败                         | 现有错误文本回模型兜底（不变）                        |
 
 - 两路独立失败互不影响：任何一路失败，另一路照常返回，服务不崩
 - knn 请求的 `filter` 与 BM25 路 `bool.filter` 一致（`status: published`），两路候选同域
 
 ## 7. 配置项（app/config.py 新增）
 
-| 项 | 默认 | 说明 |
-|---|---|---|
-| `EMBEDDING_MODEL_PATH` | `F:/models/bge-large-zh-v1.5` | BGE 模型目录 |
-| `EMBEDDING_DEVICE` | `cuda` | 加载失败自动 fallback cpu |
-| `HYBRID_SEARCH` | `true` | 混合检索总开关（false 时完全回退现状：仅 BM25 一路，不建/不查 chunk 索引） |
-| `CHUNK_MAX_TOKENS` | `256` | chunk 目标 token 数 |
-| `CHUNK_OVERLAP_TOKENS` | `32` | 超长段窗口重叠 token 数 |
+| 项                       | 默认                            | 说明                                                                                   |
+| ------------------------ | ------------------------------- | -------------------------------------------------------------------------------------- |
+| `EMBEDDING_MODEL_PATH` | `F:/models/bge-large-zh-v1.5` | BGE 模型目录                                                                           |
+| `EMBEDDING_DEVICE`     | `cuda`                        | 加载失败自动 fallback cpu                                                              |
+| `HYBRID_SEARCH`        | `true`                        | 混合检索总开关（false 时完全回退现状：仅 BM(Best Match)25 一路，不建/不查 chunk 索引） |
+| `CHUNK_MAX_TOKENS`     | `256`                         | chunk 目标 token 数                                                                    |
+| `CHUNK_OVERLAP_TOKENS` | `32`                          | 超长段窗口重叠 token 数                                                                |
 
 ## 8. 测试策略
 
